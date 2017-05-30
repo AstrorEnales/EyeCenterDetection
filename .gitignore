@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+*.jpg
+*.png
+
+src/build
+*~

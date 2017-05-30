@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 2.8)
+project( EyeCenter )
+find_package( OpenCV REQUIRED )
+add_executable( EyeCenter Main.cpp Gradient.cpp EyeCenterNaive.cpp EyeCenterAscend.cpp )
+target_link_libraries( EyeCenter ${OpenCV_LIBS} )
