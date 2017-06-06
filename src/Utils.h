@@ -1,5 +1,5 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef EYE_CENTER_UTILS_H
+#define EYE_CENTER_UTILS_H
 
 #include <opencv2/opencv.hpp>
 

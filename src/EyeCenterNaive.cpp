@@ -2,7 +2,6 @@
 #include "Gradient.h"
 #include "EyeCenterNaive.h"
 #include <stdio.h>
-#include <opencv2/opencv.hpp>
 
 using namespace cv;
 
@@ -34,11 +33,12 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers) {
   */
 
   int N = image.cols * image.rows;
-  float percentage_step = 100.0 / N;
+  float percentage_step = 100.0f / N;
 
   double fitness = 0;
   double fitness_factor = 1.0 / N;
-  double length, dot;
+  float length;
+  double dot;
   Point2f d, g;
 
   for(int y = 0; y < grad_x.rows; y++) {
@@ -64,7 +64,7 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers) {
           d = Point2f(x2 - x, y2 - y);
           length = sqrt(d.x * d.x + d.y * d.y);
           if(length > 0) {
-            d *= 1 / length;
+            d /= length;
           }
           // Normalized gradient vector
           g = Point2f(grad_x.at<float>(y2, x2), grad_y.at<float>(y2, x2));

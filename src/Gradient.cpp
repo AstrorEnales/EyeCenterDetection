@@ -5,13 +5,13 @@ using namespace cv;
 float fourNeighborX(int y, int x, int max, const Mat& grey) {
   int intensityMinus = (int) grey.at<uchar>(y, (x - 1 + max) % max);
   int intensityPlus = (int) grey.at<uchar>(y, (x + 1) % max);
-  return (intensityPlus - intensityMinus) * 0.5;
+  return (intensityPlus - intensityMinus) * 0.5f;
 }
 
 float fourNeighborY(int y, int x, int max, const Mat& grey) {
   int intensityMinus = (int) grey.at<uchar>((y - 1 + max) % max, x);
   int intensityPlus = (int) grey.at<uchar>((y + 1) % max, x);
-  return (intensityPlus - intensityMinus) * 0.5;
+  return (intensityPlus - intensityMinus) * 0.5f;
 }
 
 void calculateGradients(GradientType type, Mat& grey, Mat& grad_x, Mat& grad_y) {
