@@ -6,7 +6,7 @@
 using namespace cv;
 
 namespace EyeCenterAscend {
-  int findEyeCenters(Mat& image, Point*& centers);
+  int findEyeCenters(Mat& image, Point*& centers, bool silentMode);
 }
 
 #endif

@@ -34,5 +34,9 @@
 *.jpg
 *.png
 
+*.zip
+
+test/bioid
+test/bioidpts
 src/build
 *~

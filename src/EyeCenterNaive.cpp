@@ -5,17 +5,35 @@
 
 using namespace cv;
 
-int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers) {
+int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers, bool silentMode) {
   //GaussianBlur(image, image, Size(5, 5), 0, 0, BORDER_DEFAULT);
 
   Mat grey(image.size(), CV_8UC1);
   cvtColor(image, grey, CV_RGB2GRAY);
 
-  Mat fitnessImage(image.size(), CV_32FC1);
+  Mat fitnessImage(image.size(), CV_32FC1, float(0));
 
   Mat grad_x, grad_y;
   calculateGradients(Four_Neighbor, grey, grad_x, grad_y);
-    
+
+  Mat displacementLookup(Size(image.cols * 2, image.rows * 2), CV_32FC2);
+  Point displacementLookupCenter(image.cols, image.rows);
+  float length;
+  for(int y = 0; y < displacementLookup.rows; y++) {
+    for(int x = 0; x < displacementLookup.cols; x++) {
+      // Normalized distance vector
+      float dy = y - displacementLookupCenter.y;
+      float dx = x - displacementLookupCenter.x;
+      length = sqrt(dx * dx + dy * dy);
+
+      if(length > 0) {
+        dx /= length;
+        dy /= length;
+      }
+      displacementLookup.at<Point2f>(y, x) = Point2f(dx, dy);
+    }
+  }
+
   /*
   //set gradient border to 0
   for(int x = 0; x < grey.cols; x++) {
@@ -35,16 +53,13 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers) {
   int N = image.cols * image.rows;
   float percentage_step = 100.0f / N;
 
-  double fitness = 0;
-  double fitness_factor = 1.0 / N;
-  float length;
-  double dot;
-  Point2f d, g;
+  float gx, gy, dot;
+  Point2f d;
 
   for(int y = 0; y < grad_x.rows; y++) {
     for(int x = 0; x < grad_x.cols; x++) {
-      float gx = grad_x.at<float>(y, x);
-      float gy = grad_y.at<float>(y, x);
+      gx = grad_x.at<float>(y, x);
+      gy = grad_y.at<float>(y, x);
       length = sqrt(gx * gx + gy * gy);
       if(length > 0) {
         length = 1 / length;
@@ -53,29 +68,22 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers) {
       }
     }
   }
-
-  for(int y = 0; y < image.rows; y++) {
-    std::cout << (percentage_step * (y * image.cols)) << "%" << std::endl;
-    for(int x = 0; x < image.cols; x++) {
-      fitness = 0;
-      for(int y2 = 0; y2 < image.rows; y2++) {
-        for(int x2 = 0; x2 < image.cols; x2++) {
-          // Normalized distance vector
-          d = Point2f(x2 - x, y2 - y);
-          length = sqrt(d.x * d.x + d.y * d.y);
-          if(length > 0) {
-            d /= length;
-          }
-          // Normalized gradient vector
-          g = Point2f(grad_x.at<float>(y2, x2), grad_y.at<float>(y2, x2));
-          dot = d.dot(g);
-          fitness += dot * dot;
+  
+  for(int y2 = 0; y2 < image.rows; y2++) {
+    if (!silentMode) std::cout << (percentage_step * (y2 * image.cols)) << "%" << std::endl;
+    for(int x2 = 0; x2 < image.cols; x2++) {
+      gx = grad_x.at<float>(y2, x2);
+      gy = grad_y.at<float>(y2, x2);
+      for(int y = 0; y < image.rows; y++) {
+        for(int x = 0; x < image.cols; x++) {
+          d = displacementLookup.at<Point2f>(displacementLookupCenter.y + y2 - y, displacementLookupCenter.x + x2 - x);
+          dot = max(0.0f, d.x * gx + d.y * gy);
+          fitnessImage.at<float>(y, x) += dot * dot;
         }
       }
-      fitness = fitness * fitness_factor;
-      fitnessImage.at<float>(y, x) = fitness;
     }
   }
+  fitnessImage /= N;
 
   // Set fitness border 0
   for(int y = 0; y < grad_x.rows; y++) {
@@ -87,9 +95,11 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers) {
     fitnessImage.at<float>(fitnessImage.rows - 1, x) = 0;
   }
 
-  showNormalizedImage(grad_x, "gradx");
-  showNormalizedImage(grad_y, "grady");
-  showNormalizedImage(fitnessImage, "fit");
+  if (!silentMode) {
+    showNormalizedImage(grad_x, "gradx");
+    showNormalizedImage(grad_y, "grady");
+    showNormalizedImage(fitnessImage, "fit");
+  }
 
   // Find max fitness location
   double min, max;
@@ -102,4 +112,3 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers) {
   centers[0] = max_loc;
   return 1;
 }
-
