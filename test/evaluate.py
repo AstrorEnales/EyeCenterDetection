@@ -108,9 +108,9 @@ def calc_error(id, predictions):
         result.append(min_value / norm_distance)
     return result
 
-modes = ['naive']  # , 'ascend', 'evol'
+modes = ['naive', 'ascend']
 results = {x: [] for x in modes}
-for id in list(testCases.keys())[0:30]:
+for id in list(testCases.keys())[0:10]:
     cutout = preprocess_image(id)
     try:
         for mode in modes:
@@ -126,11 +126,15 @@ for id in list(testCases.keys())[0:30]:
 
 fig, axes = plt.subplots(nrows=len(modes), ncols=2)
 for i in range(len(modes)):
-    axes[i*2].set_xlabel('Execution time [s]' if i == 0 else 'Normalized error')
-    axes[i * 2].hist([x[0] for x in results[modes[i]]])
+    axes[i, 0].set_title('Mode: %s' % modes[i])
 
-    axes[i*2 + 1].set_xlabel('Normalized error')
+    axes[i, 0].set_xlabel('Execution time [s]')
+    axes[i, 0].hist([x[0] for x in results[modes[i]]])
+
+    axes[i, 1].set_xlabel('Normalized error')
     error_data = [item for sublist in results[modes[i]] for item in sublist[1]]
-    axes[i*2 + 1].hist(error_data)
+    axes[i, 1].hist(error_data)
 
+fig.tight_layout()
+fig.savefig('result_hist.png')
 plt.show()

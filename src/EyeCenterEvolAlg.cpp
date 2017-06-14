@@ -70,7 +70,7 @@ namespace EyeCenterEvolAlg {
     
     std::uniform_int_distribution<int> x_dist(0, image.cols - 1);
     std::uniform_int_distribution<int> y_dist(0, image.rows - 1);
-    std::cout << "Creating " << num_individuals << " individuals..." << std::endl;
+    if(!silentMode) std::cout << "Creating " << num_individuals << " individuals..." << std::endl;
 
     for(int i = 0; i < num_individuals; i++) {
       Individual ind;
@@ -82,10 +82,10 @@ namespace EyeCenterEvolAlg {
 
     std::sort(individuals->begin(), individuals->end(), by_fitness());
     
-    std::cout << "Start evolution..." << std::endl;
+    if(!silentMode) std::cout << "Start evolution..." << std::endl;
     for(int gen = 1; gen <= num_generations; gen++) {
       if(gen % 10 == 0)
-        std::cout << "GEN " << gen << "/" << num_generations << " (# ind: " << individuals->size() << ")" << std::endl;
+        if(!silentMode) std::cout << "GEN " << gen << "/" << num_generations << " (# ind: " << individuals->size() << ")" << std::endl;
       for(int i = 0; i < individuals->size(); i++) {
         //std::cout << "\tIND " << i << ": " << individuals->at(i).loc << " = " << individuals->at(i).fit << std::endl;
       }
