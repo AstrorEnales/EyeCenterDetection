@@ -38,18 +38,32 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
   Mat grey(image.size(), CV_8UC1);
   cvtColor(image, grey, CV_RGB2GRAY);
 
-  Mat debugImage = image.clone();
+  Mat debugImage;
+  if(!silentMode) debugImage = image.clone();
 
   Mat grad_x, grad_y;
   calculateGradients(Four_Neighbor, grey, grad_x, grad_y);
 
-  const int m = 1;
-  const int tmax = 20;
+  const int m = 50;
+  const int tmax = 30;
   const int N = image.cols * image.rows;
   const double sigma = 0.001;
+  const int stepSizeCount = 10;
+  const double stepIntervalMin = pow(10, -2);
+  const double stepIntervalMax = pow(10, 5);
+
+  double interval;
+  double stepSizes[stepSizeCount];
+  // for n = 10, exponentially increase stepsize [10⁻², 10⁵]
+  for (int h = 0; h < stepSizeCount; h++) {
+    interval = (exp(h) - 1) / (exp(stepSizeCount - 1) - 1);
+    interval = (interval * (stepIntervalMax - stepIntervalMin) + stepIntervalMin);
+    stepSizes[h] = interval;
+  }
+
+  double maxMagnitude = -1, minMagnitude = -1;
   
   // Find the m highest magnitudes
-  std::cout << "Find the m highest magnitudes" << std::endl;
   double highest_magnitudes[m];
   for(int i = 0; i < m; i++) {
     highest_magnitudes[i] = -1;
@@ -60,9 +74,13 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
       double gx = grad_x.at<float>(y, x);
       double gy = grad_y.at<float>(y, x);
       double mag = sqrt(gx * gx + gy * gy);
-      
+      if(mag > maxMagnitude)
+        maxMagnitude = mag;
+      if(mag < minMagnitude || minMagnitude == -1)
+        minMagnitude = mag;
+
       int index = -1;
-      while(mag > highest_magnitudes[index + 1] && index < m) {
+      while(mag > highest_magnitudes[index + 1] && index < m - 1) {
         index += 1;
       }
       if(index > -1) {
@@ -75,29 +93,28 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
       }   
     }
   }
-  
-  std::cout << "Iterate" << std::endl;
+
   Point centerPoints[m];
   double centerFitness[m];
-  Point2d d_i, g_i;
+  Point2f d_i, g_i;
   float n, e_i, length;
-  double stepIntervalMin = pow(10, -2);
-  double stepIntervalMax = pow(10, 5);
   for(int i = 0; i < m; i++) {
-    Point c = highest_magnitude_pixels[i];// getInitialCenter(i)
+    // getInitialCenter(i)
+    Point c = highest_magnitude_pixels[i];
     Point c_old;
     for(int j = 0; j < tmax; j++) {
-      std::cout << "\t" << j << std::endl;
       c_old = Point(c.x, c.y);
       Point2d g(0, 0);
       for(int y = 0; y < image.rows; y++) {
+        float* grad_ptr_x = grad_x.ptr<float>(y);
+        float* grad_ptr_y = grad_y.ptr<float>(y);
         for(int x = 0; x < image.cols; x++) {
           if (x == c.x && y == c.y) {
             continue;
           }
-          // computeGradient(c, X, G)//X:PixelPositions, G:Gradients
-          g_i = Point2d(grad_x.at<float>(y, x), grad_y.at<float>(y, x));
-          d_i = Point2d(x - c.x, y - c.y);
+          // computeGradient(c, X, G)
+          g_i = Point2f(grad_ptr_x[x], grad_ptr_y[x]);
+          d_i = Point2f(x - c.x, y - c.y);
           n = d_i.x * d_i.x + d_i.y * d_i.y; // n * n so sqrt is unnecessary
           e_i = d_i.dot(g_i);
           g.x += (d_i.x * (e_i * e_i) - g.x * e_i * n) / (n * n);
@@ -110,12 +127,10 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
         g /= length;
       }
 
-      // for n = 10, exponentially increase stepsize [10⁻², 10⁵] evaluate J(c)
-      int stepPoints = 10;// n = 10 values in e-function
-      double bestFitness = -1, bestStepSize = 0, interval;
-      for (int h = 0; h < stepPoints; h++) {
-        interval = (exp(h) - 1) / (exp(stepPoints - 1) - 1);
-        interval = (interval * (stepIntervalMax - stepIntervalMin) + stepIntervalMin);
+      // evaluate J(c)
+      double bestFitness = -1, bestStepSize = 0;
+      for (int h = 0; h < stepSizeCount; h++) {
+        interval = stepSizes[h];
         
         Point cTemp((int) (c.x + interval * g.x), (int) (c.y + interval * g.y));
         double f = fitness(image, grad_x, grad_y, cTemp);
@@ -127,11 +142,10 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
       if (bestStepSize <= 0) {
         break;
       }
-      std::cout << c << " -> " << g << " * " << bestStepSize << std::endl;
       c.x += (int) (bestStepSize * g.x);
       c.y += (int) (bestStepSize * g.y);
 
-      line(debugImage, c_old, c, Scalar(255, 0, 0), 1, 8, 0);
+      if(!silentMode) line(debugImage, c_old, c, Scalar(255, 0, 0), 1, 8, 0);
       
       Point diff = c - c_old;
       double length = sqrt(diff.x * diff.x + diff.y * diff.y);
@@ -154,12 +168,14 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
   }
 
   // DEBUG drawing
-  for(int i = 0; i < m; i++) {
-    Point c = highest_magnitude_pixels[i];
-    line(debugImage, Point(c.x - 5, c.y), Point(c.x + 5, c.y), Scalar(0, 255, 0), 1, 8, 0);
-    line(debugImage, Point(c.x, c.y - 5), Point(c.x, c.y + 5), Scalar(0, 255, 0), 1, 8, 0);
+  if(!silentMode) {
+    for(int i = 0; i < m; i++) {
+      Point c = highest_magnitude_pixels[i];
+      line(debugImage, Point(c.x - 5, c.y), Point(c.x + 5, c.y), Scalar(0, 255, 0), 1, 8, 0);
+      line(debugImage, Point(c.x, c.y - 5), Point(c.x, c.y + 5), Scalar(0, 255, 0), 1, 8, 0);
+    }
+    imshow("debug", debugImage);
   }
-  imshow("debug", debugImage);
 
   centers = new Point[1];
   centers[0] = maximumCenter;

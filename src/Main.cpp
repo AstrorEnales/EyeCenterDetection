@@ -67,6 +67,7 @@ int main(int argc, char** argv) {
   // Find all eye centers
   Point* eyeCenters;
   int eyeCenterCount;
+  int64 ticks = getTickCount();
   if (mode == MODE_NAIVE) {
     eyeCenterCount = EyeCenterNaive::findEyeCenters(image, eyeCenters, silentMode);
   } else if (mode == MODE_ASCEND) {
@@ -74,6 +75,8 @@ int main(int argc, char** argv) {
   } else if (mode == MODE_EVOL) {
     eyeCenterCount = EyeCenterEvolAlg::findEyeCenters(image, eyeCenters, silentMode);
   }
+  // Print out the time used for the detection mode
+  std::cout << ((getTickCount() - ticks) / getTickFrequency()) << std::endl;
   
   // Print the results
   for (int i = 0; i < eyeCenterCount; i++) {

@@ -53,6 +53,7 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers, bool silentMode)
   int N = image.cols * image.rows;
   float percentage_step = 100.0f / N;
 
+  int dx, dy;
   float gx, gy, dot;
   Point2f d;
 
@@ -71,14 +72,20 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers, bool silentMode)
   
   for(int y2 = 0; y2 < image.rows; y2++) {
     if (!silentMode) std::cout << (percentage_step * (y2 * image.cols)) << "%" << std::endl;
+    float* grad_ptr_x = grad_x.ptr<float>(y2);
+    float* grad_ptr_y = grad_y.ptr<float>(y2);
     for(int x2 = 0; x2 < image.cols; x2++) {
-      gx = grad_x.at<float>(y2, x2);
-      gy = grad_y.at<float>(y2, x2);
+      gx = grad_ptr_x[x2];
+      gy = grad_ptr_y[x2];
+      dx = displacementLookupCenter.x + x2;
+      dy = displacementLookupCenter.y + y2;
       for(int y = 0; y < image.rows; y++) {
+        float* fitness_ptr = fitnessImage.ptr<float>(y);
+        Point2f* displacement_lookup_ptr = displacementLookup.ptr<Point2f>(dy - y);
         for(int x = 0; x < image.cols; x++) {
-          d = displacementLookup.at<Point2f>(displacementLookupCenter.y + y2 - y, displacementLookupCenter.x + x2 - x);
+          d = displacement_lookup_ptr[dx - x];
           dot = max(0.0f, d.x * gx + d.y * gy);
-          fitnessImage.at<float>(y, x) += dot * dot;
+          fitness_ptr[x] += dot * dot;
         }
       }
     }
