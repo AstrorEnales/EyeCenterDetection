@@ -1,36 +1,10 @@
-//#include "Utils.h"
+#include "Utils.h"
 #include "Gradient.h"
 #include "EyeCenterAscend.h"
 #include <stdio.h>
 #include <math.h>  
 
 using namespace cv;
-
-bool bordersReached(Point c, int w, int h) {
-  return c.x <= 0 || c.x >= w - 1 || c.y <= 0 || c.y >= h - 1;
-}
-
-double fitness(Mat& image, Mat& grad_x, Mat& grad_y, Point c) {
-  double fitness = 0, length, dot;
-  Point2f d, g;
-  for(int y = 0; y < image.rows; y++) {
-    for(int x = 0; x < image.cols; x++) {
-      // Normalized distance vector
-      d = Point2f(x - c.x, y - c.y);
-      length = sqrt(d.x * d.x + d.y * d.y);
-      if(length > 0) {
-        d /= length;
-      }
-      // Normalized gradient vector
-      g = Point2f(grad_x.at<float>(y, x), grad_y.at<float>(y, x));
-      dot = d.dot(g);
-      fitness += dot * dot;
-    }
-  }
-  int N = image.cols * image.rows;
-  return fitness / N;
-}
-
 
 int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode) {
   //GaussianBlur(image, image, Size(5, 5), 0, 0, BORDER_DEFAULT);
@@ -50,7 +24,7 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
   const double sigma = 0.001;
   const int stepSizeCount = 10;
   const double stepIntervalMin = pow(10, -2);
-  const double stepIntervalMax = pow(10, 5);
+  const double stepIntervalMax = pow(10, 3);
 
   double interval;
   double stepSizes[stepSizeCount];
@@ -100,25 +74,32 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
   float n, e_i, length;
   for(int i = 0; i < m; i++) {
     // getInitialCenter(i)
-    Point c = highest_magnitude_pixels[i];
-    Point c_old;
+    Point2f c = highest_magnitude_pixels[i];
+    //std::cout << "Start center: " << c << std::endl;
+    Point2f c_old;
     for(int j = 0; j < tmax; j++) {
-      c_old = Point(c.x, c.y);
+      //std::cout << "\tIteration: " << j << std::endl;
+      c_old = Point2f(c.x, c.y);
       Point2d g(0, 0);
       for(int y = 0; y < image.rows; y++) {
         float* grad_ptr_x = grad_x.ptr<float>(y);
         float* grad_ptr_y = grad_y.ptr<float>(y);
         for(int x = 0; x < image.cols; x++) {
-          if (x == c.x && y == c.y) {
+          if (x == (int)c.x && y == (int)c.y) {
             continue;
           }
           // computeGradient(c, X, G)
           g_i = Point2f(grad_ptr_x[x], grad_ptr_y[x]);
+          length = sqrt(g_i.x * g_i.x + g_i.y * g_i.y);
+          if(length > 0)
+            g_i /= length;
           d_i = Point2f(x - c.x, y - c.y);
           n = d_i.x * d_i.x + d_i.y * d_i.y; // n * n so sqrt is unnecessary
           e_i = d_i.dot(g_i);
-          g.x += (d_i.x * (e_i * e_i) - g.x * e_i * n) / (n * n);
-          g.y += (d_i.y * (e_i * e_i) - g.y * e_i * n) / (n * n);
+          //g.x += (d_i.x * (e_i * e_i) - g.x * e_i * n) / (n * n);
+          //g.y += (d_i.y * (e_i * e_i) - g.y * e_i * n) / (n * n);
+          g.x += (d_i.x * (e_i * e_i)) / (n * n);
+          g.y += (d_i.y * (e_i * e_i)) / (n * n);
         }
       }
       g = g * 2 / N;
@@ -126,6 +107,7 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
       if (length > 0) {
         g /= length;
       }
+      //std::cout << "\tG: " << g << std::endl;
 
       // evaluate J(c)
       double bestFitness = -1, bestStepSize = 0;
@@ -133,22 +115,29 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
         interval = stepSizes[h];
         
         Point cTemp((int) (c.x + interval * g.x), (int) (c.y + interval * g.y));
-        double f = fitness(image, grad_x, grad_y, cTemp);
-        if (!bordersReached(cTemp, image.cols, image.rows) && f > bestFitness) {
-          bestFitness = f;
-          bestStepSize = interval;
+        if (!bordersReached(cTemp, image.cols, image.rows)) {
+          double f = fitness(image, grad_x, grad_y, cTemp);
+          //std::cout << "\t\tCheck Stepsize: " << interval << ", fitness: " << f << std::endl;
+          if (f > bestFitness) {
+            //std::cout << "\t\t\tConsidered" << std::endl;
+            bestFitness = f;
+            bestStepSize = interval;
+          }
         }
       }
       if (bestStepSize <= 0) {
         break;
       }
-      c.x += (int) (bestStepSize * g.x);
-      c.y += (int) (bestStepSize * g.y);
+      //std::cout << "\tStepsize: " << bestStepSize << std::endl;
+      c.x += bestStepSize * g.x;
+      c.y += bestStepSize * g.y;
 
       if(!silentMode) line(debugImage, c_old, c, Scalar(255, 0, 0), 1, 8, 0);
       
-      Point diff = c - c_old;
+      Point2f diff = c - c_old;
       double length = sqrt(diff.x * diff.x + diff.y * diff.y);
+      
+      //std::cout << "\tNew Center: " << c << ", distance: " << length << std::endl;
       
       if(bordersReached(c, image.cols, image.rows) || length <= sigma)
         break;

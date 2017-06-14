@@ -5,10 +5,10 @@
 
 using namespace cv;
 
-void showNormalizedImage(const Mat& img, std::string name) {
-  Mat imgNormalized;
-  normalize(img, imgNormalized, 1, 0, NORM_MINMAX);
-  imshow(name, imgNormalized);
-}
+void showNormalizedImage(const Mat& img, std::string name);
+
+bool bordersReached(Point c, int w, int h);
+
+double fitness(Mat& image, Mat& grad_x, Mat& grad_y, Point c);
 
 #endif
