@@ -1,4 +1,4 @@
-//#include "Utils.h"
+#include "Utils.h"
 #include "Gradient.h"
 #include "EyeCenterEvolAlg.h"
 #include <stdio.h>
@@ -7,27 +7,6 @@
 using namespace cv;
 
 namespace EyeCenterEvolAlg {
-  double fitnessEvolAlg(Mat& image, Mat& grad_x, Mat& grad_y, int cx, int cy) {
-    double fitness = 0, length, dot;
-    Point2f d, g;
-    for(int y = 0; y < image.rows; y++) {
-      for(int x = 0; x < image.cols; x++) {
-        // Normalized distance vector
-        d = Point2f(x - cx, y - cy);
-        length = sqrt(d.x * d.x + d.y * d.y);
-        if(length > 0) {
-          d /= length;
-        }
-        // Normalized gradient vector
-        g = Point2f(grad_x.at<float>(y, x), grad_y.at<float>(y, x));
-        dot = d.dot(g);
-        fitness += dot * dot;
-      }
-    }
-    int N = image.cols * image.rows;
-    return fitness / N;
-  }
-
   struct Individual { 
     int x;
     int y;
@@ -62,7 +41,8 @@ namespace EyeCenterEvolAlg {
 
     Mat grad_x, grad_y;
     calculateGradients(Four_Neighbor, grey, grad_x, grad_y);
-
+    
+    Mat displacementLookup = buildDisplacementLookup(image.cols, image.rows);
 
     std::vector<Individual> *individuals = new std::vector<Individual>;
 
@@ -76,7 +56,7 @@ namespace EyeCenterEvolAlg {
       Individual ind;
       ind.x = x_dist(rng);
       ind.y = y_dist(rng);
-      ind.fit = fitnessEvolAlg(image, grad_x, grad_y, ind.x, ind.y);
+      ind.fit = fitness(image, grad_x, grad_y, displacementLookup, ind.x, ind.y);
       individuals->push_back(ind);
     }
 
@@ -119,7 +99,7 @@ namespace EyeCenterEvolAlg {
         if(percent_dist(rng) < crossover_rate) {
           child.y = parent2.y;
         }
-        child.fit = fitnessEvolAlg(image, grad_x, grad_y, child.x, child.y);
+        child.fit = fitness(image, grad_x, grad_y, displacementLookup, child.x, child.y);
         next_gen->push_back(child);
       }
 

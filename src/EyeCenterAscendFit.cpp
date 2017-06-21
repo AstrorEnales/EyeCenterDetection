@@ -6,9 +6,18 @@
 
 using namespace cv;
 
-int EyeCenterAscendFit::findEyeCenters(Mat& image, Point*& centers, bool silentMode) {
-  GaussianBlur(image, image, Size(5, 5), 0, 0, BORDER_DEFAULT);
+float getFitnessLookup(Mat& image, Mat& grad_x, Mat& grad_y, Mat& fitnessLookup, Mat& displacementLookup, int x, int y) {
+  x = min(image.cols - 1, max(0, x));
+  y = min(image.rows - 1, max(0, y));
+  float val = fitnessLookup.at<float>(y, x);
+  if(val < 0) {
+    val = fitness(image, grad_x, grad_y, displacementLookup, x, y);
+    fitnessLookup.at<float>(y, x) = val;
+  }
+  return val;
+}
 
+int EyeCenterAscendFit::findEyeCenters(Mat& image, Point*& centers, bool silentMode) {
   Mat grey(image.size(), CV_8UC1);
   cvtColor(image, grey, CV_RGB2GRAY);
 
@@ -16,11 +25,11 @@ int EyeCenterAscendFit::findEyeCenters(Mat& image, Point*& centers, bool silentM
   if(!silentMode) debugImage = image.clone();
 
   Mat fitnessLookup(image.size(), CV_32FC1, float(-1));
-
+  
   Mat grad_x, grad_y;
   calculateGradients(Four_Neighbor, grey, grad_x, grad_y);
-
-  const int m = 1;
+  
+  const int m = 10;
   const int tmax = 300;
   const int N = image.cols * image.rows;
   const double sigma = 0.001;
@@ -69,46 +78,52 @@ int EyeCenterAscendFit::findEyeCenters(Mat& image, Point*& centers, bool silentM
     }
   }
 
+  float gx, gy, length;
+  for(int y = 0; y < grad_x.rows; y++) {
+    for(int x = 0; x < grad_x.cols; x++) {
+      gx = grad_x.at<float>(y, x);
+      gy = grad_y.at<float>(y, x);
+      length = sqrt(gx * gx + gy * gy);
+      if(length > 0) {
+        length = 1 / length;
+        grad_x.at<float>(y, x) = gx * length;
+        grad_y.at<float>(y, x) = gy * length;
+      }
+    }
+  }
+
+  Mat displacementLookup = buildDisplacementLookup(image.cols, image.rows);
+  Point displacementLookupCenter(image.cols, image.rows);
+  
+  // Set fitness border 0
+  for(int y = 0; y < image.rows; y++) {
+    fitnessLookup.at<float>(y, 0) = 0;
+    fitnessLookup.at<float>(y, image.cols - 1) = 0;
+  }
+  for(int x = 0; x < image.cols; x++) {
+    fitnessLookup.at<float>(0, x) = 0;
+    fitnessLookup.at<float>(image.rows - 1, x) = 0;
+  }
+
   Point centerPoints[m];
   double centerFitness[m];
   Point2f d_i, g_i;
-  float n, e_i, length;
   for(int i = 0; i < m; i++) {
-    // getInitialCenter(i)
     Point2f c = highest_magnitude_pixels[i];
-    //std::cout << "Start center: " << c << std::endl;
     Point2f c_old;
     for(int j = 0; j < tmax; j++) {
-      //std::cout << "\tIteration: " << j << std::endl;
       c_old = Point2f(c.x, c.y);
       
-      for(int y = -10; y <= 10; y++)
-        for(int x = -10; x <= 10; x++)
-          if(fitnessLookup.at<float>((int)c.y + y, (int)c.x + x) < 0)
-            fitnessLookup.at<float>((int)c.y + y, (int)c.x + x) = fitness(image, grad_x, grad_y, Point((int)c.y + y, (int)c.x + x));
-      
-      float left = fitnessLookup.at<float>((int)c.y, (int)c.x - 1);
-      float right = fitnessLookup.at<float>((int)c.y, (int)c.x + 1);
-      float top = fitnessLookup.at<float>((int)c.y - 1, (int)c.x);
-      float bottom = fitnessLookup.at<float>((int)c.y + 1, (int)c.x);
-      if(left < 0) {
-        fitnessLookup.at<float>((int)c.y, (int)c.x - 1) = left = fitness(image, grad_x, grad_y, Point((int)c.y, (int)c.x - 1));
-      }
-      if(right < 0) {
-        fitnessLookup.at<float>((int)c.y, (int)c.x + 1) = right = fitness(image, grad_x, grad_y, Point((int)c.y, (int)c.x + 1));
-      }
-      if(top < 0) {
-        fitnessLookup.at<float>((int)c.y - 1, (int)c.x) = top = fitness(image, grad_x, grad_y, Point((int)c.y - 1, (int)c.x));
-      }
-      if(bottom < 0) {
-        fitnessLookup.at<float>((int)c.y + 1, (int)c.x) = bottom = fitness(image, grad_x, grad_y, Point((int)c.y + 1, (int)c.x));
-      }
+      float left = getFitnessLookup(image, grad_x, grad_y, fitnessLookup, displacementLookup, (int)c.x - 1, (int)c.y);
+      float right = getFitnessLookup(image, grad_x, grad_y, fitnessLookup, displacementLookup, (int)c.x + 1, (int)c.y);
+      float top = getFitnessLookup(image, grad_x, grad_y, fitnessLookup, displacementLookup, (int)c.x, (int)c.y - 1);
+      float bottom = getFitnessLookup(image, grad_x, grad_y, fitnessLookup, displacementLookup, (int)c.x, (int)c.y + 1);
       Point2f g((right - left) * 0.5f, (bottom - top) * 0.5f);
       length = sqrt(g.x * g.x + g.y * g.y);
       if (length > 0) {
         g /= length;
       }
-      //std::cout << "\tG: " << g << std::endl;
+      //std::cout << left << "," << right << "," << top << "," << bottom << " - " << g << std::endl;
 
       // evaluate J(c)
       double bestFitness = -1, bestStepSize = 0;
@@ -117,7 +132,7 @@ int EyeCenterAscendFit::findEyeCenters(Mat& image, Point*& centers, bool silentM
         
         Point cTemp((int) (c.x + interval * g.x), (int) (c.y + interval * g.y));
         if (!bordersReached(cTemp, image.cols, image.rows)) {
-          double f = fitness(image, grad_x, grad_y, cTemp);
+          double f = fitness(image, grad_x, grad_y, displacementLookup, cTemp.x, cTemp.y);
           //std::cout << "\t\tCheck Stepsize: " << interval << ", fitness: " << f << std::endl;
           if (f > bestFitness) {
             //std::cout << "\t\t\tConsidered" << std::endl;
@@ -144,7 +159,7 @@ int EyeCenterAscendFit::findEyeCenters(Mat& image, Point*& centers, bool silentM
         break;
     }
     centerPoints[i] = c;
-    centerFitness[i] = fitness(image, grad_x, grad_y, c);
+    centerFitness[i] = fitness(image, grad_x, grad_y, displacementLookup, c.x, c.y);
   }
   
   // Find the center with maximum fitness
@@ -165,7 +180,9 @@ int EyeCenterAscendFit::findEyeCenters(Mat& image, Point*& centers, bool silentM
       line(debugImage, Point(c.x, c.y - 5), Point(c.x, c.y + 5), Scalar(0, 255, 0), 1, 8, 0);
     }
     imshow("debug", debugImage);
-
+    
+    showNormalizedImage(grad_x, "grad_x");
+    showNormalizedImage(grad_y, "grad_y");
     showNormalizedImage(fitnessLookup, "fitness");
   }
 

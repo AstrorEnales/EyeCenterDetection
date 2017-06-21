@@ -6,8 +6,6 @@
 using namespace cv;
 
 int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers, bool silentMode) {
-  //GaussianBlur(image, image, Size(5, 5), 0, 0, BORDER_DEFAULT);
-
   Mat grey(image.size(), CV_8UC1);
   cvtColor(image, grey, CV_RGB2GRAY);
 
@@ -16,45 +14,14 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers, bool silentMode)
   Mat grad_x, grad_y;
   calculateGradients(Four_Neighbor, grey, grad_x, grad_y);
 
-  Mat displacementLookup(Size(image.cols * 2, image.rows * 2), CV_32FC2);
-  Point displacementLookupCenter(image.cols, image.rows);
-  float length;
-  for(int y = 0; y < displacementLookup.rows; y++) {
-    for(int x = 0; x < displacementLookup.cols; x++) {
-      // Normalized distance vector
-      float dy = y - displacementLookupCenter.y;
-      float dx = x - displacementLookupCenter.x;
-      length = sqrt(dx * dx + dy * dy);
-
-      if(length > 0) {
-        dx /= length;
-        dy /= length;
-      }
-      displacementLookup.at<Point2f>(y, x) = Point2f(dx, dy);
-    }
-  }
-
-  /*
-  //set gradient border to 0
-  for(int x = 0; x < grey.cols; x++) {
-    grad_y.at<float>(0, x) = 0;
-    grad_x.at<float>(0, x) = 0;
-    grad_y.at<float>(grey.rows-1, x) = 0;
-    grad_x.at<float>(grey.rows-1, x) = 0;
-  }
-  for(int y = 0; y < grey.rows; y++) {
-    grad_y.at<float>(y, 0) = 0;
-    grad_x.at<float>(y, 0) = 0;
-    grad_y.at<float>(y, grey.cols-1) = 0;
-    grad_x.at<float>(y, grey.cols-1) = 0;
-  }
-  */
+  Mat displacementLookup = buildDisplacementLookup(image.cols, image.rows);
 
   int N = image.cols * image.rows;
   float percentage_step = 100.0f / N;
 
   int dx, dy;
-  float gx, gy, dot;
+  float gx, gy, dot, length;
+  Point displacementLookupCenter(image.cols, image.rows);
   Point2f d;
 
   for(int y = 0; y < grad_x.rows; y++) {

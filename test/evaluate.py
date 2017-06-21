@@ -77,7 +77,7 @@ def draw_cross(draw, x, y, color):
     draw.line((x, y - 5, x, y + 5), fill=color)
 
 
-def draw_result_image(id, predictions):
+def draw_result_image(id, predictions, mode):
     im = Image.open(os.path.join(bioiddir, '%s.pgm' % id)).convert('RGB')
     draw = ImageDraw.Draw(im)
     left = testCases[id][0]
@@ -86,7 +86,7 @@ def draw_result_image(id, predictions):
     draw_cross(draw, right[0], right[1], 'green')
     for pred in predictions:
         draw_cross(draw, pred[0], pred[1], 'red')
-    outfile = os.path.join(bioiddir, '%s_result.png' % id)
+    outfile = os.path.join(bioiddir, '%s_%s_result.png' % (id, mode))
     im.save(outfile, 'PNG')
 
 
@@ -108,9 +108,9 @@ def calc_error(id, predictions):
         result.append(min_value / norm_distance)
     return result
 
-modes = ['naive', 'ascend']
+modes = ['naive', 'ascendfit']
 results = {x: [] for x in modes}
-for id in list(testCases.keys())[0:10]:
+for id in list(testCases.keys())[49:100]:
     cutout = preprocess_image(id)
     try:
         for mode in modes:
@@ -120,7 +120,7 @@ for id in list(testCases.keys())[0:10]:
             predictions = [[cutout[1][0] + x[0], cutout[1][1] + x[1]] for x in predictions]
             error = calc_error(id, predictions)
             results[mode].append([time_used, error])
-            draw_result_image(id, predictions)
+            draw_result_image(id, predictions, mode)
     finally:
         os.remove(cutout[0])
 
@@ -129,9 +129,11 @@ for i in range(len(modes)):
     axes[i, 0].set_title('Mode: %s' % modes[i])
 
     axes[i, 0].set_xlabel('Execution time [s]')
+    axes[i, 0].set_xlim(0, 1)
     axes[i, 0].hist([x[0] for x in results[modes[i]]])
 
     axes[i, 1].set_xlabel('Normalized error')
+    axes[i, 1].set_xlim(0, 1)
     error_data = [item for sublist in results[modes[i]] for item in sublist[1]]
     axes[i, 1].hist(error_data)
 

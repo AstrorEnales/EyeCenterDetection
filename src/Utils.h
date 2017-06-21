@@ -9,6 +9,8 @@ void showNormalizedImage(const Mat& img, std::string name);
 
 bool bordersReached(Point c, int w, int h);
 
-double fitness(Mat& image, Mat& grad_x, Mat& grad_y, Point c);
+Mat buildDisplacementLookup(int w, int h);
+
+double fitness(Mat& image, Mat& grad_x, Mat& grad_y, Mat& displacementLookup, int x, int y);
 
 #endif
