@@ -34,14 +34,18 @@ Mat buildDisplacementLookup(int w, int h) {
 double fitness(Mat& image, Mat& grad_x, Mat& grad_y, Mat& displacementLookup, int cx, int cy) {
   double fitness = 0;
   float length, dot;
-  Point2f d;
+  float dx;
+  float dy;
+  int i;
   for(int y = 0; y < image.rows; y++) {
     float* grad_x_ptr = grad_x.ptr<float>(y);
     float* grad_y_ptr = grad_y.ptr<float>(y);
-    Point2f* displacement_lookup_ptr = displacementLookup.ptr<Point2f>(image.rows + y - cy);
+    float* displacement_lookup_ptr = displacementLookup.ptr<float>(image.rows + y - cy);
     for(int x = 0; x < image.cols; x++) {
-      d = displacement_lookup_ptr[image.cols + x - cx];
-      dot = max(0.0f, d.x * grad_x_ptr[x] + d.y * grad_y_ptr[x]);
+      i = (image.cols + x - cx) * 2;
+      dx = displacement_lookup_ptr[i];
+      dy = displacement_lookup_ptr[i+1];
+      dot = max(0.0f, dx * grad_x_ptr[x] + dy * grad_y_ptr[x]);
       fitness += dot * dot;
     }
   }
