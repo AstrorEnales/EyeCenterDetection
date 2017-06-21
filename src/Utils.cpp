@@ -6,10 +6,6 @@ void showNormalizedImage(const Mat& img, std::string name) {
   imshow(name, imgNormalized);
 }
 
-bool bordersReached(Point c, int w, int h) {
-  return c.x <= 0 || c.x >= w - 1 || c.y <= 0 || c.y >= h - 1;
-}
-
 Mat buildDisplacementLookup(int w, int h) {
   float length;
   Mat displacementLookup(Size(w * 2, h * 2), CV_32FC2);
@@ -34,21 +30,23 @@ Mat buildDisplacementLookup(int w, int h) {
 double fitness(Mat& image, Mat& grad_x, Mat& grad_y, Mat& displacementLookup, int cx, int cy) {
   double fitness = 0;
   float length, dot;
-  float dx;
-  float dy;
-  int i;
+  int i, x;
+  cy = image.rows - cy;
+  cx = image.cols - cx;
   for(int y = 0; y < image.rows; y++) {
-    float* grad_x_ptr = grad_x.ptr<float>(y);
-    float* grad_y_ptr = grad_y.ptr<float>(y);
-    float* displacement_lookup_ptr = displacementLookup.ptr<float>(image.rows + y - cy);
-    for(int x = 0; x < image.cols; x++) {
-      i = (image.cols + x - cx) * 2;
-      dx = displacement_lookup_ptr[i];
-      dy = displacement_lookup_ptr[i+1];
-      dot = max(0.0f, dx * grad_x_ptr[x] + dy * grad_y_ptr[x]);
-      fitness += dot * dot;
+    const float* grad_x_ptr = grad_x.ptr<float>(y);
+    const float* grad_y_ptr = grad_y.ptr<float>(y);
+    const float* displacement_lookup_ptr = displacementLookup.ptr<float>(cy + y);
+    i = cx * 2;
+    for(x = 0; x < image.cols; x++) {
+      i += 2;
+      const float& dx = displacement_lookup_ptr[i];
+      const float& dy = displacement_lookup_ptr[i+1];
+      dot = dx * grad_x_ptr[x] + dy * grad_y_ptr[x];
+      if(dot > 0)
+        fitness += dot;
     }
   }
-  int N = image.cols * image.rows;
+  const int N = image.cols * image.rows;
   return fitness / N;
 }
