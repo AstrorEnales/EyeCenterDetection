@@ -7,7 +7,9 @@ using namespace cv;
 
 void showNormalizedImage(const Mat& img, std::string name);
 
-bool bordersReached(Point c, int w, int h);
+inline bool bordersReached(const int cx, const int cy, const int w, const int h) {
+  return cx <= 0 || cx >= w - 1 || cy <= 0 || cy >= h - 1;
+}
 
 Mat buildDisplacementLookup(int w, int h);
 
