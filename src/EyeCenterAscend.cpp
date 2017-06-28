@@ -68,7 +68,8 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
     }
   }
 
-  Mat displacementLookup = buildDisplacementLookup(image.cols, image.rows);
+  Mat displacementLookup;
+  buildDisplacementLookup(displacementLookup, image.cols, image.rows);
 
   Point centerPoints[m];
   double centerFitness[m];
@@ -118,7 +119,7 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
         
         Point cTemp((int) (c.x + interval * g.x), (int) (c.y + interval * g.y));
         if (!bordersReached(cTemp.x, cTemp.y, image.cols, image.rows)) {
-          double f = fitness(image, grad_x, grad_y, displacementLookup, cTemp.x, cTemp.y);
+          double f = fitness(image.cols, image.rows, grad_x, grad_y, displacementLookup, cTemp.x, cTemp.y);
           //std::cout << "\t\tCheck Stepsize: " << interval << ", fitness: " << f << std::endl;
           if (f > bestFitness) {
             //std::cout << "\t\t\tConsidered" << std::endl;
@@ -141,11 +142,11 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
       
       //std::cout << "\tNew Center: " << c << ", distance: " << length << std::endl;
       
-      if(bordersReached(c.x, c.y, image.cols, image.rows) || length <= sigma)
+      if(length <= sigma)
         break;
     }
     centerPoints[i] = c;
-    centerFitness[i] = fitness(image, grad_x, grad_y, displacementLookup, c.x, c.y);
+    centerFitness[i] = fitness(image.cols, image.rows, grad_x, grad_y, displacementLookup, c.x, c.y);
   }
   
   // Find the center with maximum fitness

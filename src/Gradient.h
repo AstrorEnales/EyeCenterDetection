@@ -3,11 +3,15 @@
 
 #include <opencv2/opencv.hpp>
 
+using namespace cv;
+
 enum GradientType {
   OpenCV_Scharr,
   Four_Neighbor
 };
 
-void calculateGradients(GradientType type, cv::Mat& grey, cv::Mat& grad_x, cv::Mat& grad_y);
+void calculateGradients(GradientType type, Mat& grey, Mat& grad_x, Mat& grad_y);
+
+void normalizeGradients(Mat& grad_x, Mat& grad_y);
 
 #endif

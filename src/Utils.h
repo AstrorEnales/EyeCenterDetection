@@ -11,8 +11,8 @@ inline bool bordersReached(const int cx, const int cy, const int w, const int h)
   return cx <= 0 || cx >= w - 1 || cy <= 0 || cy >= h - 1;
 }
 
-Mat buildDisplacementLookup(int w, int h);
+void buildDisplacementLookup(Mat& displacementLookup, int w, int h);
 
-double fitness(Mat& image, Mat& grad_x, Mat& grad_y, Mat& displacementLookup, int x, int y);
+double fitness(const int cols, const int rows, Mat& grad_x, Mat& grad_y, Mat& displacementLookup, int x, int y);
 
 #endif

@@ -2,6 +2,22 @@
 
 using namespace cv;
 
+void normalizeGradients(Mat& grad_x, Mat& grad_y) {
+  float length, gx, gy;
+  for(int y = 0; y < grad_x.rows; y++) {
+    for(int x = 0; x < grad_x.cols; x++) {
+      gx = grad_x.at<float>(y, x);
+      gy = grad_y.at<float>(y, x);
+      length = sqrt(gx * gx + gy * gy);
+      if(length > 0) {
+        length = 1 / length;
+        grad_x.at<float>(y, x) = gx * length;
+        grad_y.at<float>(y, x) = gy * length;
+      }
+    }
+  }
+}
+
 float fourNeighborX(int y, int x, const Mat& grey) {
   int intensityMinus = (int) grey.at<uchar>(y, max(0, x - 1));
   int intensityPlus = (int) grey.at<uchar>(y, min(grey.cols - 1, x + 1));

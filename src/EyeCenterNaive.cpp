@@ -13,46 +13,40 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers, bool silentMode)
 
   Mat grad_x, grad_y;
   calculateGradients(Four_Neighbor, grey, grad_x, grad_y);
-
-  Mat displacementLookup = buildDisplacementLookup(image.cols, image.rows);
+  
+  Mat displacementLookup;
+  buildDisplacementLookup(displacementLookup, image.cols, image.rows);
 
   int N = image.cols * image.rows;
   float percentage_step = 100.0f / N;
 
   int dx, dy;
-  float gx, gy, dot, length;
+  float gx, gy, dlx, dly, dot;
   Point displacementLookupCenter(image.cols, image.rows);
   Point2f d;
 
-  for(int y = 0; y < grad_x.rows; y++) {
-    for(int x = 0; x < grad_x.cols; x++) {
-      gx = grad_x.at<float>(y, x);
-      gy = grad_y.at<float>(y, x);
-      length = sqrt(gx * gx + gy * gy);
-      if(length > 0) {
-        length = 1 / length;
-        grad_x.at<float>(y, x) = gx * length;
-        grad_y.at<float>(y, x) = gy * length;
-      }
-    }
-  }
+  normalizeGradients(grad_x, grad_y);
   
-  for(int y2 = 0; y2 < image.rows; y2++) {
+  int y2, x2, y, x, i;
+  for(y2 = 0; y2 < image.rows; y2++) {
     if (!silentMode) std::cout << (percentage_step * (y2 * image.cols)) << "%" << std::endl;
-    float* grad_ptr_x = grad_x.ptr<float>(y2);
-    float* grad_ptr_y = grad_y.ptr<float>(y2);
-    for(int x2 = 0; x2 < image.cols; x2++) {
+    const float* grad_ptr_x = grad_x.ptr<float>(y2);
+    const float* grad_ptr_y = grad_y.ptr<float>(y2);
+    for(x2 = 0; x2 < image.cols; x2++) {
       gx = grad_ptr_x[x2];
       gy = grad_ptr_y[x2];
       dx = displacementLookupCenter.x + x2;
       dy = displacementLookupCenter.y + y2;
-      for(int y = 0; y < image.rows; y++) {
+      for(y = 0; y < image.rows; y++) {
         float* fitness_ptr = fitnessImage.ptr<float>(y);
-        Point2f* displacement_lookup_ptr = displacementLookup.ptr<Point2f>(dy - y);
-        for(int x = 0; x < image.cols; x++) {
-          d = displacement_lookup_ptr[dx - x];
-          dot = max(0.0f, d.x * gx + d.y * gy);
-          fitness_ptr[x] += dot * dot;
+        const float* displacement_lookup_ptr = displacementLookup.ptr<float>(dy - y);
+        i = dx * 2;
+        for(x = 0; x < image.cols; x++) {
+          dlx = displacement_lookup_ptr[i--];
+          dly = displacement_lookup_ptr[i--];
+          dot = dlx * gx + dly * gy;
+          if(dot > 0)
+            fitness_ptr[x] += dot;
         }
       }
     }

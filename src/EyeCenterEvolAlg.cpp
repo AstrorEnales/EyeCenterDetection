@@ -42,7 +42,8 @@ namespace EyeCenterEvolAlg {
     Mat grad_x, grad_y;
     calculateGradients(Four_Neighbor, grey, grad_x, grad_y);
     
-    Mat displacementLookup = buildDisplacementLookup(image.cols, image.rows);
+    Mat displacementLookup;
+    buildDisplacementLookup(displacementLookup, image.cols, image.rows);
 
     std::vector<Individual> *individuals = new std::vector<Individual>;
 
@@ -56,7 +57,7 @@ namespace EyeCenterEvolAlg {
       Individual ind;
       ind.x = x_dist(rng);
       ind.y = y_dist(rng);
-      ind.fit = fitness(image, grad_x, grad_y, displacementLookup, ind.x, ind.y);
+      ind.fit = fitness(image.cols, image.rows, grad_x, grad_y, displacementLookup, ind.x, ind.y);
       individuals->push_back(ind);
     }
 
@@ -99,7 +100,7 @@ namespace EyeCenterEvolAlg {
         if(percent_dist(rng) < crossover_rate) {
           child.y = parent2.y;
         }
-        child.fit = fitness(image, grad_x, grad_y, displacementLookup, child.x, child.y);
+        child.fit = fitness(image.cols, image.rows, grad_x, grad_y, displacementLookup, child.x, child.y);
         next_gen->push_back(child);
       }
 
