@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
-import urllib.request
+from sys import argv, version_info
+python_version3 = version_info > (3, 0)
+if python_version3: import urllib.request as urllibreq
+else: import urllib as urllibreq
 import os
 import zipfile
-from sys import argv
 import subprocess
 import operator
 import math
@@ -14,19 +16,19 @@ bioidfile = 'BioID-FaceDatabase-V1.2.zip'
 bioiddir = 'bioid'
 bioidptsfile = 'bioid_pts.zip'
 bioidptsdir = 'bioidpts'
-eyeCenterApp = '..\\src\\build\\RelWithDebInfo\\EyeCenter.exe' if len(argv) <= 1 else argv[2]
+eyeCenterApp = '../src/build/RelWithDebInfo/EyeCenter.exe' if len(argv) <= 1 else argv[1]
 
 # Load the bioid database
 if not os.path.isdir(bioiddir):
     if not os.path.isfile(bioidfile):
-        urllib.request.urlretrieve('https://ftp.uni-erlangen.de/pub/facedb/BioID-FaceDatabase-V1.2.zip', bioidfile)
+        urllibreq.urlretrieve('https://ftp.uni-erlangen.de/pub/facedb/BioID-FaceDatabase-V1.2.zip', bioidfile)
   
     with zipfile.ZipFile(bioidfile, 'r') as z:
         z.extractall(bioiddir)
     
 if not os.path.isdir(bioidptsdir):
     if not os.path.isfile(bioidptsfile):
-        urllib.request.urlretrieve('https://ftp.uni-erlangen.de/pub/facedb/bioid_pts.zip', bioidptsfile)
+        urllibreq.urlretrieve('https://ftp.uni-erlangen.de/pub/facedb/bioid_pts.zip', bioidptsfile)
     with zipfile.ZipFile(bioidptsfile, 'r') as z:
         z.extractall(bioidptsdir)
 
@@ -63,7 +65,7 @@ def preprocess_image(id):
     18 = centre point on outer edge of lower lip
     19 = tip of chin
     '''
-    with open(os.path.join(bioidptsdir, 'points_20\\%s.pts' % id)) as f:
+    with open(os.path.join(bioidptsdir, 'points_20/%s.pts' % id.lower())) as f:
         positions = [[int(float(y)) for y in x.strip().split(' ')] for x in f.readlines()[3:-1]]
         rect = (positions[8][0], positions[4][1], positions[13][0], positions[14][1])
         im = Image.open(os.path.join(bioiddir, '%s.pgm' % id))
@@ -108,7 +110,7 @@ def calc_error(id, predictions):
         result.append(min_value / norm_distance)
     return result
 
-modes = ['naive', 'ascendfit']
+modes = ['naive', 'ascend', 'ascendfit', 'paul', 'evol']
 results = {x: [] for x in modes}
 for id in list(testCases.keys())[49:100]:
     cutout = preprocess_image(id)
@@ -124,7 +126,7 @@ for id in list(testCases.keys())[49:100]:
     finally:
         os.remove(cutout[0])
 
-fig, axes = plt.subplots(nrows=len(modes), ncols=2)
+fig, axes = plt.subplots(nrows=len(modes), ncols=2, figsize=(10, len(modes) * 2))
 for i in range(len(modes)):
     axes[i, 0].set_title('Mode: %s' % modes[i])
 
@@ -138,5 +140,5 @@ for i in range(len(modes)):
     axes[i, 1].hist(error_data)
 
 fig.tight_layout()
-fig.savefig('result_hist.png')
+fig.savefig('result_hist.png', dpi=300)
 plt.show()
