@@ -1,5 +1,6 @@
 #include "EyeCenterNaive.h"
 #include "EyeCenterAscend.h"
+#include "EyeCenterAscendPaul.h"
 #include "EyeCenterAscendFit.h"
 #include "EyeCenterEvolAlg.h"
 #include <algorithm>
@@ -12,6 +13,7 @@ const String MODE_NAIVE = "naive";
 const String MODE_ASCEND = "ascend";
 const String MODE_ASCEND_FIT = "ascendfit";
 const String MODE_EVOL = "evol";
+const String MODE_PAUL = "paul";
 
 char* getArg(char ** begin, char ** end, const std::string & option) {
   char ** itr = std::find(begin, end, option);
@@ -31,7 +33,7 @@ int main(int argc, char** argv) {
     std::cout << "\t-h, --help\tPrint this help message." << std::endl;
     std::cout << "\t-s\t\tActivate silent mode (good for evaluation)." << std::endl;
     std::cout << "\t-r\t\tResize the image to 100 width (for fast testing)." << std::endl;
-    std::cout << "\t-m [MODE]\tAnalysis mode [naive, ascend, ascendfit, evol]." << std::endl;
+    std::cout << "\t-m [MODE]\tAnalysis mode [naive, ascend, ascendfit, evol, paul]." << std::endl;
     std::cout << "\t-i [FILE]\tImage file to analyze." << std::endl;
     return 0;
   }
@@ -45,7 +47,7 @@ int main(int argc, char** argv) {
   if (argExists(argv, argv + argc, "-m")) {
     mode = getArg(argv, argv + argc, "-m");
   }
-  if (mode != MODE_NAIVE && mode != MODE_ASCEND && mode != MODE_ASCEND_FIT && mode != MODE_EVOL) {
+  if (mode != MODE_NAIVE && mode != MODE_ASCEND && mode != MODE_ASCEND_FIT && mode != MODE_EVOL && mode != MODE_PAUL) {
     std::cout << "Unknown mode " << mode << std::endl;
     return -1;
   }
@@ -78,6 +80,8 @@ int main(int argc, char** argv) {
     eyeCenterCount = EyeCenterAscendFit::findEyeCenters(image, eyeCenters, silentMode);
   } else if (mode == MODE_EVOL) {
     eyeCenterCount = EyeCenterEvolAlg::findEyeCenters(image, eyeCenters, silentMode);
+  } else if (mode == MODE_PAUL) {
+    eyeCenterCount = EyeCenterAscendPaul::findEyeCenters(image, eyeCenters, silentMode);
   }
   // Print out the time used for the detection mode
   std::cout << ((getTickCount() - ticks) / getTickFrequency()) << std::endl;

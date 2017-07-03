@@ -1,12 +1,12 @@
 #include "Utils.h"
 #include "Gradient.h"
-#include "EyeCenterAscend.h"
+#include "EyeCenterAscendPaul.h"
 #include <stdio.h>
 #include <math.h>  
 
 using namespace cv;
 
-int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode) {
+int EyeCenterAscendPaul::findEyeCenters(Mat& image, Point*& centers, bool silentMode) {
   //GaussianBlur(image, image, Size(5, 5), 0, 0, BORDER_DEFAULT);
 
   Mat grey(image.size(), CV_8UC1);
@@ -73,7 +73,7 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
 
   Point centerPoints[m];
   double centerFitness[m];
-  Point2f d_i, g_i;
+  float d_i_x, d_i_y, g_i_x, g_i_y, cy_gix, cx_giy, giy_x, gix_y;
   float n, e_i, length;
   for(int i = 0; i < m; i++) {
     // getInitialCenter(i)
@@ -87,29 +87,36 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
       for(int y = 0; y < image.rows; y++) {
         float* grad_ptr_x = grad_x.ptr<float>(y);
         float* grad_ptr_y = grad_y.ptr<float>(y);
+        d_i_y = y - c.y;
         for(int x = 0; x < image.cols; x++) {
           if (x == (int)c.x && y == (int)c.y) {
             continue;
           }
           // computeGradient(c, X, G)
-          g_i = Point2f(grad_ptr_x[x], grad_ptr_y[x]);
-          length = sqrt(g_i.x * g_i.x + g_i.y * g_i.y);
-          if(length > 0)
-            g_i /= length;
-          d_i = Point2f(x - c.x, y - c.y);
-          n = d_i.x * d_i.x + d_i.y * d_i.y; // n * n so sqrt is unnecessary
-          e_i = d_i.dot(g_i);
-          //g.x += (d_i.x * (e_i * e_i) - g.x * e_i * n) / (n * n);
-          //g.y += (d_i.y * (e_i * e_i) - g.y * e_i * n) / (n * n);
-          g.x += (d_i.x * (e_i * e_i)) / (n * n);
-          g.y += (d_i.y * (e_i * e_i)) / (n * n);
+          d_i_x = x - c.x;
+          g_i_x = grad_ptr_x[x];
+          g_i_y = grad_ptr_y[x];
+          cy_gix = c.y * g_i_x;
+          cx_giy = c.x * g_i_y;
+          gix_y = g_i_x * y;
+          giy_x = g_i_y * x;
+          n = (d_i_x * d_i_x) + (d_i_y * d_i_y); // n * n so sqrt is unnecessary
+          n = n * n;
+          g.x += d_i_y * (giy_x - gix_y - cx_giy + cy_gix) / n;
+          g.y += d_i_x * (gix_y - giy_x + cx_giy - cy_gix) / n; 
         }
       }
-      g = g * 2 / N;
+      //* edgy movement
+      g.x = g.x == 0 ? 0 : g.x < 0 ? -1 : 1;
+      g.y = g.y == 0 ? 0 : g.y < 0 ? -1 : 1;
+      //*/
+      /* Fluid movement
+      g = g / N;
       length = sqrt(g.x * g.x + g.y * g.y);
       if (length > 0) {
         g /= length;
       }
+      */
       //std::cout << "\tG: " << g << std::endl;
 
       // evaluate J(c)
@@ -118,6 +125,7 @@ int EyeCenterAscend::findEyeCenters(Mat& image, Point*& centers, bool silentMode
         interval = stepSizes[h];
         
         Point cTemp((int) (c.x + interval * g.x), (int) (c.y + interval * g.y));
+        //std::cout << "\t\tCTemp: " << c.x << " + " << interval << " * " << g.x << std::endl;
         if (!bordersReached(cTemp.x, cTemp.y, image.cols, image.rows)) {
           double f = fitness(image.cols, image.rows, grad_x, grad_y, displacementLookup, cTemp.x, cTemp.y);
           //std::cout << "\t\tCheck Stepsize: " << interval << ", fitness: " << f << std::endl;

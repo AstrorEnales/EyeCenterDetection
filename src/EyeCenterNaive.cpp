@@ -45,8 +45,8 @@ int EyeCenterNaive::findEyeCenters(Mat& image, Point*& centers, bool silentMode)
           dlx = displacement_lookup_ptr[i--];
           dly = displacement_lookup_ptr[i--];
           dot = dlx * gx + dly * gy;
-          if(dot > 0)
-            fitness_ptr[x] += dot;
+          //if(dot > 0)
+          fitness_ptr[x] += dot * dot;
         }
       }
     }
