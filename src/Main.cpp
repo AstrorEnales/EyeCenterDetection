@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
+#include <opencv2/objdetect/objdetect.hpp>
 
 using namespace cv;
 
@@ -27,49 +28,8 @@ bool argExists(char** begin, char** end, const std::string& option) {
   return std::find(begin, end, option) != end;
 }
 
-int main(int argc, char** argv) {
-  if (argc < 2 || argExists(argv, argv + argc, "-h") || argExists(argv, argv + argc, "--help")) {
-    std::cout << "Usage: EyeCenter [args]" << std::endl;
-    std::cout << "\t-h, --help\tPrint this help message." << std::endl;
-    std::cout << "\t-s\t\tActivate silent mode (good for evaluation)." << std::endl;
-    std::cout << "\t-r\t\tResize the image to 100 width (for fast testing)." << std::endl;
-    std::cout << "\t-m [MODE]\tAnalysis mode [naive, ascend, ascendfit, evol, paul]." << std::endl;
-    std::cout << "\t-i [FILE]\tImage file to analyze." << std::endl;
-    return 0;
-  }
-
-  String inputFilepath;
-  if (argExists(argv, argv + argc, "-i")) {
-    inputFilepath = getArg(argv, argv + argc, "-i");
-  }
-
-  String mode = MODE_NAIVE;
-  if (argExists(argv, argv + argc, "-m")) {
-    mode = getArg(argv, argv + argc, "-m");
-  }
-  if (mode != MODE_NAIVE && mode != MODE_ASCEND && mode != MODE_ASCEND_FIT && mode != MODE_EVOL && mode != MODE_PAUL) {
-    std::cout << "Unknown mode " << mode << std::endl;
-    return -1;
-  }
-
-  bool silentMode = argExists(argv, argv + argc, "-s");
-
-  Mat image;
-  image = imread(inputFilepath, 1);
-  if (!image.data) {
-    std::cout << "Failed to load image " << inputFilepath << std::endl;
-    return -1;
-  }
-
-  // For faster testing reduce the image size
-  if (argExists(argv, argv + argc, "-r")) {
-    int height = 100;
-    Size scale((int)(image.cols * (height / (float)image.rows)), height);
-    resize(image, image, scale);
-  }
-
+int runAnalysis(Mat& image, String mode, bool silentMode, Point*& eyeCenters) {
   // Find all eye centers
-  Point* eyeCenters;
   int eyeCenterCount;
   int64 ticks = getTickCount();
   if (mode == MODE_NAIVE) {
@@ -100,6 +60,108 @@ int main(int argc, char** argv) {
            Scalar(0, 0, 255), 1, 8, 0);
     }
     imshow("image", image);
+  }
+  return eyeCenterCount;
+}
+
+int main(int argc, char** argv) {
+  if (argc < 2 || argExists(argv, argv + argc, "-h") || argExists(argv, argv + argc, "--help")) {
+    std::cout << "Usage: EyeCenter [args]" << std::endl;
+    std::cout << "\t-h, --help\tPrint this help message." << std::endl;
+    std::cout << "\t-s\t\tActivate silent mode (good for evaluation)." << std::endl;
+    std::cout << "\t-r\t\tResize the image to 100 width (for fast testing)." << std::endl;
+    std::cout << "\t-m [MODE]\tAnalysis mode [naive, ascend, ascendfit, evol, paul]." << std::endl;
+    std::cout << "\t-i [FILE]\tImage file to analyze." << std::endl;
+    std::cout << "\t-c [SOURCE]\tLive camera feed." << std::endl;
+    return 0;
+  }
+
+  String inputFilepath;
+  if (argExists(argv, argv + argc, "-i")) {
+    inputFilepath = getArg(argv, argv + argc, "-i");
+  }
+  
+  int cameraSource;
+  bool liveCameraMode = argExists(argv, argv + argc, "-c");
+  if (liveCameraMode) {
+    String sourceString = getArg(argv, argv + argc, "-c");
+    try {
+      cameraSource = std::stoi(sourceString);
+    }
+    catch(Exception ex) {
+      std::cout << "Failed to parse camera source. Using default 0." << std::endl;
+      cameraSource = 0;
+    }
+  }
+
+  String mode = MODE_NAIVE;
+  if (argExists(argv, argv + argc, "-m")) {
+    mode = getArg(argv, argv + argc, "-m");
+  }
+  if (mode != MODE_NAIVE && mode != MODE_ASCEND && mode != MODE_ASCEND_FIT && mode != MODE_EVOL && mode != MODE_PAUL) {
+    std::cout << "Unknown mode " << mode << std::endl;
+    return -1;
+  }
+
+  bool silentMode = argExists(argv, argv + argc, "-s");
+
+  if (liveCameraMode) {
+    VideoCapture cap(0);
+    if (!cap.isOpened()) {
+      std::cout << "Unable to connect to camera" << std::endl;
+      return -1;
+    }
+    
+    Mat image;
+    while(true) {
+      cap >> image;
+    
+      CascadeClassifier faceCascade;
+      faceCascade.load("D:/code/opencv/sources/data/haarcascades/haarcascade_frontalface_alt2.xml");
+      CascadeClassifier eyeCascade;
+      eyeCascade.load("D:/code/opencv/sources/data/haarcascades/haarcascade_eye.xml");
+      std::vector<Rect> faces;
+      std::vector<Rect> eyes;
+      faceCascade.detectMultiScale(image, faces, 1.1, 2, CV_HAAR_SCALE_IMAGE, Size(30, 30));
+      for(int i = 0; i < faces.size(); i++) {
+        Mat face = image(faces.at(i));
+        eyeCascade.detectMultiScale(face, eyes, 1.1, 3, CV_HAAR_SCALE_IMAGE, Size(30, 30));
+        for(int j = 0; j < eyes.size(); j++) {
+          //Point center(faces[i].x + eyes[j].x + eyes[j].width*0.5, faces[i].y + eyes[j].y + eyes[j].height*0.5);
+          //ellipse(image, center, Size(eyes[j].width*0.5, eyes[j].height*0.5), 0, 0, 360, Scalar(255, 0, 255), 4, 8, 0);
+        
+          Mat eye = face(eyes.at(j));
+          Point* eyeCenters;
+          runAnalysis(eye, mode, true, eyeCenters);
+          eyeCenters[0].x += faces[i].x + eyes[j].x;
+          eyeCenters[0].y += faces[i].y + eyes[j].y;
+          line(image, eyeCenters[0] - Point(5, 0), eyeCenters[0] + Point(5, 0), Scalar(0, 0, 255), 1, 8, 0);
+          line(image, eyeCenters[0] - Point(0, 5), eyeCenters[0] + Point(0, 5), Scalar(0, 0, 255), 1, 8, 0);
+        }
+      }
+      imshow("image", image);
+      if(cv::waitKey(30)  == ' ') {
+        break;
+      }
+    }
+    destroyWindow("image");
+
+  } else {
+    Mat image;
+    image = imread(inputFilepath, 1);
+    if (!image.data) {
+      std::cout << "Failed to load image " << inputFilepath << std::endl;
+      return -1;
+    }
+    // For faster testing reduce the image size
+    if (argExists(argv, argv + argc, "-r")) {
+      int height = 100;
+      Size scale((int)(image.cols * (height / (float)image.rows)), height);
+      resize(image, image, scale);
+    }
+    
+    Point* eyeCenters;
+    runAnalysis(image, mode, silentMode, eyeCenters);
   }
 
   waitKey(0);

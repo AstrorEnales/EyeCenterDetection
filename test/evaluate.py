@@ -65,13 +65,22 @@ def preprocess_image(id):
     18 = centre point on outer edge of lower lip
     19 = tip of chin
     '''
+    result = []
     with open(os.path.join(bioidptsdir, 'points_20/%s.pts' % id.lower())) as f:
         positions = [[int(float(y)) for y in x.strip().split(' ')] for x in f.readlines()[3:-1]]
-        rect = (positions[8][0], positions[4][1], positions[13][0], positions[14][1])
         im = Image.open(os.path.join(bioiddir, '%s.pgm' % id))
-        outfile = os.path.join(bioiddir, '%s.png' % id)
+        
+        rect = (positions[8][0], positions[4][1], positions[14][0], positions[14][1])
+        outfile = os.path.join(bioiddir, '%s_1.png' % id)
         im.crop(rect).save(outfile, 'PNG')
-        return [outfile, rect]
+        result.append([outfile, rect])
+        
+        rect = (positions[14][0], positions[4][1], positions[13][0], positions[14][1])
+        outfile = os.path.join(bioiddir, '%s_2.png' % id)
+        im.crop(rect).save(outfile, 'PNG')
+        result.append([outfile, rect])
+        
+    return result
 
 
 def draw_cross(draw, x, y, color):
@@ -92,10 +101,10 @@ def draw_result_image(id, predictions, mode):
     im.save(outfile, 'PNG')
 
 
-def run_eye_center(id, mode):
-    result = subprocess.check_output([eyeCenterApp, '-m', mode, '-s', '-i', os.path.join(bioiddir, '%s.png' % id)]).decode('utf-8')
+def run_eye_center(id, num, mode):
+    result = subprocess.check_output([eyeCenterApp, '-m', mode, '-s', '-i', os.path.join(bioiddir, '%s_%s.png' % (id, num))]).decode('utf-8')
     result = [x.strip() for x in result.replace('\r', '').split('\n') if len(x.strip()) > 0]
-    # result[0] is the time used for the detection mode. The following lines are the found targets
+    # result[0] is the time used for the detection mode. The following line is the found target
     return float(result[0]), [[int(y) for y in x.split('\t')] for x in result[1:]]
 
 
@@ -112,30 +121,39 @@ def calc_error(id, predictions):
 
 modes = ['naive', 'ascend', 'ascendfit', 'paul', 'evol']
 results = {x: [] for x in modes}
-for id in list(testCases.keys())[49:100]:
-    cutout = preprocess_image(id)
+count = 0
+for id in list(testCases.keys()):
+    count += 1
+    print(count, '/', len(testCases.keys()))
+    cutouts = preprocess_image(id)
     try:
         for mode in modes:
-            predictions = run_eye_center(id, mode)
-            time_used = predictions[0]
-            predictions = predictions[1]
-            predictions = [[cutout[1][0] + x[0], cutout[1][1] + x[1]] for x in predictions]
-            error = calc_error(id, predictions)
-            results[mode].append([time_used, error])
-            draw_result_image(id, predictions, mode)
+            pred_positions = []
+            for num in [1, 2]:
+                predictions = run_eye_center(id, num, mode)
+                cutout = cutouts[num - 1][1]
+                pixel_count = (cutout[3] - cutout[1]) * (cutout[2] - cutout[0])
+                time_used = predictions[0] * 1000.0 / pixel_count
+                predictions = predictions[1]
+                predictions = [[cutout[0] + x[0], cutout[1] + x[1]] for x in predictions]
+                pred_positions.extend(predictions)
+                error = calc_error(id, predictions)
+                results[mode].append([time_used, error])
+            draw_result_image(id, pred_positions, mode)
     finally:
-        os.remove(cutout[0])
+        os.remove(cutouts[0][0])
+        os.remove(cutouts[1][0])
 
 fig, axes = plt.subplots(nrows=len(modes), ncols=2, figsize=(10, len(modes) * 2))
 for i in range(len(modes)):
     axes[i, 0].set_title('Mode: %s' % modes[i])
 
-    axes[i, 0].set_xlabel('Execution time [s]')
-    axes[i, 0].set_xlim(0, 1)
+    axes[i, 0].set_xlabel('Execution time [s / 1k pixel]')
+    axes[i, 0].set_xlim(0, 0.5)
     axes[i, 0].hist([x[0] for x in results[modes[i]]])
 
     axes[i, 1].set_xlabel('Normalized error')
-    axes[i, 1].set_xlim(0, 1)
+    axes[i, 1].set_xlim(0, 0.5)
     error_data = [item for sublist in results[modes[i]] for item in sublist[1]]
     axes[i, 1].hist(error_data)
 
