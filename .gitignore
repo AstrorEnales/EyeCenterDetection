@@ -40,3 +40,5 @@ test/bioid
 test/bioidpts
 src/build
 *~
+
+*.mp4
