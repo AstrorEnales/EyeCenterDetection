@@ -67,6 +67,57 @@ int runAnalysis(Mat& image, String mode, bool silentMode, bool logResultsAndTime
   return eyeCenterCount;
 }
 
+void runAnalysisFace(Mat& image, String mode, bool silentMode, bool logResultsAndTime,
+                     CascadeClassifier& faceCascade, CascadeClassifier& eyeCascade) {
+  int64 ticks = getTickCount();
+  std::vector<Rect> faces;
+  std::vector<Rect> eyes;
+  std::vector<Point> eyeCentersVec;
+  faceCascade.detectMultiScale(image, faces, 1.1, 2, CV_HAAR_SCALE_IMAGE, Size(30, 30));
+  for(unsigned int i = 0; i < faces.size(); i++) {
+    Mat face = image(faces.at(i));
+    eyeCascade.detectMultiScale(face, eyes, 1.1, 2, CV_HAAR_SCALE_IMAGE, Size(30, 30));
+    
+    if (!silentMode) {
+      Point center(faces[i].x + faces[i].width*0.5, faces[i].y + faces[i].height*0.5);
+      ellipse(image, center, Size(faces[i].width*0.5, faces[i].height*0.5), 0, 0, 360, Scalar(0, 0, 255), 1, 8, 0);
+    }
+
+    for(unsigned int j = 0; j < eyes.size(); j++) {
+      if (!silentMode) {
+        Point center(faces[i].x + eyes[j].x + eyes[j].width*0.5, faces[i].y + eyes[j].y + eyes[j].height*0.5);
+        ellipse(image, center, Size(eyes[j].width*0.5, eyes[j].height*0.5), 0, 0, 360, Scalar(0, 255, 0), 1, 8, 0);
+      }
+
+      Mat eye = face(eyes.at(j));
+      Point* eyeCenters;
+      runAnalysis(eye, mode, true, false, eyeCenters);
+      eyeCenters[0].x += faces[i].x + eyes[j].x;
+      eyeCenters[0].y += faces[i].y + eyes[j].y;
+      
+      eyeCentersVec.push_back(eyeCenters[0]);
+
+      if (!silentMode) {
+        line(image, eyeCenters[0] - Point(5, 0), eyeCenters[0] + Point(5, 0), Scalar(0, 0, 255), 1, 8, 0);
+        line(image, eyeCenters[0] - Point(0, 5), eyeCenters[0] + Point(0, 5), Scalar(0, 0, 255), 1, 8, 0);
+      }
+    }
+  }
+  if (logResultsAndTime) {
+    // Print out the time used for the detection mode
+    std::cout << ((getTickCount() - ticks) / getTickFrequency()) << std::endl;
+    
+    // Print the results
+    for (unsigned int i = 0; i < eyeCentersVec.size(); i++) {
+      std::cout << eyeCentersVec.at(i).x << "\t" << eyeCentersVec.at(i).y << std::endl;
+    }
+  }
+
+  if (!silentMode) {
+    imshow("image", image);
+  }
+}
+
 int main(int argc, char** argv) {
   if (argc < 2 || argExists(argv, argv + argc, "-h") || argExists(argv, argv + argc, "--help")) {
     std::cout << "Usage: EyeCenter [args]" << std::endl;
@@ -129,30 +180,10 @@ int main(int argc, char** argv) {
     faceCascade.load(classifierPath + "/haarcascade_frontalface_alt2.xml");
     CascadeClassifier eyeCascade;
     eyeCascade.load(classifierPath + "/haarcascade_eye.xml");
-    std::vector<Rect> faces;
-    std::vector<Rect> eyes;
     Mat image;
     while(true) {
       cap >> image;
-
-      faceCascade.detectMultiScale(image, faces, 1.1, 2, CV_HAAR_SCALE_IMAGE, Size(30, 30));
-      for(unsigned int i = 0; i < faces.size(); i++) {
-        Mat face = image(faces.at(i));
-        eyeCascade.detectMultiScale(face, eyes, 1.1, 3, CV_HAAR_SCALE_IMAGE, Size(30, 30));
-        for(unsigned int j = 0; j < eyes.size(); j++) {
-          //Point center(faces[i].x + eyes[j].x + eyes[j].width*0.5, faces[i].y + eyes[j].y + eyes[j].height*0.5);
-          //ellipse(image, center, Size(eyes[j].width*0.5, eyes[j].height*0.5), 0, 0, 360, Scalar(255, 0, 255), 4, 8, 0);
-        
-          Mat eye = face(eyes.at(j));
-          Point* eyeCenters;
-          runAnalysis(eye, mode, true, false, eyeCenters);
-          eyeCenters[0].x += faces[i].x + eyes[j].x;
-          eyeCenters[0].y += faces[i].y + eyes[j].y;
-          line(image, eyeCenters[0] - Point(5, 0), eyeCenters[0] + Point(5, 0), Scalar(0, 0, 255), 1, 8, 0);
-          line(image, eyeCenters[0] - Point(0, 5), eyeCenters[0] + Point(0, 5), Scalar(0, 0, 255), 1, 8, 0);
-        }
-      }
-      imshow("image", image);
+      runAnalysisFace(image, mode, silentMode, false, faceCascade, eyeCascade);
       if(cv::waitKey(30)  == ' ') {
         break;
       }
@@ -173,8 +204,16 @@ int main(int argc, char** argv) {
       resize(image, image, scale);
     }
     
-    Point* eyeCenters;
-    runAnalysis(image, mode, silentMode, true, eyeCenters);
+    if (faceMode) {
+      CascadeClassifier faceCascade;
+      faceCascade.load(classifierPath + "/haarcascade_frontalface_alt2.xml");
+      CascadeClassifier eyeCascade;
+      eyeCascade.load(classifierPath + "/haarcascade_eye.xml");
+      runAnalysisFace(image, mode, silentMode, true, faceCascade, eyeCascade);
+    } else {
+      Point* eyeCenters;
+      runAnalysis(image, mode, silentMode, true, eyeCenters);
+    }
   }
 
   waitKey(0);
