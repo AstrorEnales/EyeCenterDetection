@@ -9,6 +9,7 @@ import zipfile
 import subprocess
 import operator
 import math
+import csv
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
 
@@ -122,9 +123,11 @@ def calc_error(id, predictions):
 modes = ['naive', 'ascend', 'ascendfit', 'paul', 'evol']
 results = {x: [] for x in modes}
 count = 0
-for id in list(testCases.keys()):
+keys = list(testCases.keys())
+keys = keys[100:120] # For faster testing, limit the number of test images
+for id in keys:
     count += 1
-    print(count, '/', len(testCases.keys()))
+    print(count, '/', len(keys))
     cutouts = preprocess_image(id)
     try:
         for mode in modes:
@@ -138,12 +141,23 @@ for id in list(testCases.keys()):
                 predictions = [[cutout[0] + x[0], cutout[1] + x[1]] for x in predictions]
                 pred_positions.extend(predictions)
                 error = calc_error(id, predictions)
-                results[mode].append([time_used, error])
+                results[mode].append([time_used, error, predictions, id])
             draw_result_image(id, pred_positions, mode)
     finally:
         os.remove(cutouts[0][0])
         os.remove(cutouts[1][0])
 
+# Save the results into a csv file for future analysis
+for mode in modes:
+  with open('results/evaluate_results_%s.csv' % mode, 'w', newline='') as csvfile:
+      writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+      writer.writerow(['bioid', 'time', 'errors', 'predictions'])
+      for result in results[mode]:
+        errors_text = '|'.join([str(round(x, 6)) for x in result[1]])
+        predictions_text = '|'.join(['%s;%s' % (x[0], x[1]) for x in result[2]])
+        writer.writerow([result[3], round(result[0], 6), errors_text, predictions_text])
+
+# Plot the results into histograms
 fig, axes = plt.subplots(nrows=len(modes), ncols=2, figsize=(10, len(modes) * 2))
 for i in range(len(modes)):
     axes[i, 0].set_title('Mode: %s' % modes[i])
@@ -159,4 +173,4 @@ for i in range(len(modes)):
 
 fig.tight_layout()
 fig.savefig('result_hist.png', dpi=300)
-plt.show()
+#plt.show()
