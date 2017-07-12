@@ -28,7 +28,7 @@ bool argExists(char** begin, char** end, const std::string& option) {
   return std::find(begin, end, option) != end;
 }
 
-int runAnalysis(Mat& image, String mode, bool silentMode, Point*& eyeCenters) {
+int runAnalysis(Mat& image, String mode, bool silentMode, bool logResultsAndTime, Point*& eyeCenters) {
   // Find all eye centers
   int eyeCenterCount;
   int64 ticks = getTickCount();
@@ -43,12 +43,15 @@ int runAnalysis(Mat& image, String mode, bool silentMode, Point*& eyeCenters) {
   } else if (mode == MODE_PAUL) {
     eyeCenterCount = EyeCenterAscendPaul::findEyeCenters(image, eyeCenters, silentMode);
   }
-  // Print out the time used for the detection mode
-  std::cout << ((getTickCount() - ticks) / getTickFrequency()) << std::endl;
+
+  if (logResultsAndTime) {
+    // Print out the time used for the detection mode
+    std::cout << ((getTickCount() - ticks) / getTickFrequency()) << std::endl;
   
-  // Print the results
-  for (int i = 0; i < eyeCenterCount; i++) {
-    std::cout << eyeCenters[i].x << "\t" << eyeCenters[i].y << std::endl;
+    // Print the results
+    for (int i = 0; i < eyeCenterCount; i++) {
+      std::cout << eyeCenters[i].x << "\t" << eyeCenters[i].y << std::endl;
+    }
   }
 
   // Show result
@@ -73,12 +76,21 @@ int main(int argc, char** argv) {
     std::cout << "\t-m [MODE]\tAnalysis mode [naive, ascend, ascendfit, evol, paul]." << std::endl;
     std::cout << "\t-i [FILE]\tImage file to analyze." << std::endl;
     std::cout << "\t-c [SOURCE]\tLive camera feed." << std::endl;
+    std::cout << "\t-f\t\tFace mode (detect faces before analysis)." << std::endl;
+    std::cout << "\t-fc [PATH]\tClassifier path." << std::endl;
     return 0;
   }
 
   String inputFilepath;
   if (argExists(argv, argv + argc, "-i")) {
     inputFilepath = getArg(argv, argv + argc, "-i");
+  }
+
+  String classifierPath;
+  if (argExists(argv, argv + argc, "-fc")) {
+    classifierPath = getArg(argv, argv + argc, "-fc");
+  } else {
+    classifierPath = ".";
   }
   
   int cameraSource;
@@ -104,35 +116,36 @@ int main(int argc, char** argv) {
   }
 
   bool silentMode = argExists(argv, argv + argc, "-s");
+  bool faceMode = argExists(argv, argv + argc, "-f");
 
   if (liveCameraMode) {
-    VideoCapture cap(0);
+    VideoCapture cap(cameraSource);
     if (!cap.isOpened()) {
       std::cout << "Unable to connect to camera" << std::endl;
       return -1;
     }
     
+    CascadeClassifier faceCascade;
+    faceCascade.load(classifierPath + "/haarcascade_frontalface_alt2.xml");
+    CascadeClassifier eyeCascade;
+    eyeCascade.load(classifierPath + "/haarcascade_eye.xml");
+    std::vector<Rect> faces;
+    std::vector<Rect> eyes;
     Mat image;
     while(true) {
       cap >> image;
-    
-      CascadeClassifier faceCascade;
-      faceCascade.load("D:/code/opencv/sources/data/haarcascades/haarcascade_frontalface_alt2.xml");
-      CascadeClassifier eyeCascade;
-      eyeCascade.load("D:/code/opencv/sources/data/haarcascades/haarcascade_eye.xml");
-      std::vector<Rect> faces;
-      std::vector<Rect> eyes;
+
       faceCascade.detectMultiScale(image, faces, 1.1, 2, CV_HAAR_SCALE_IMAGE, Size(30, 30));
-      for(int i = 0; i < faces.size(); i++) {
+      for(unsigned int i = 0; i < faces.size(); i++) {
         Mat face = image(faces.at(i));
         eyeCascade.detectMultiScale(face, eyes, 1.1, 3, CV_HAAR_SCALE_IMAGE, Size(30, 30));
-        for(int j = 0; j < eyes.size(); j++) {
+        for(unsigned int j = 0; j < eyes.size(); j++) {
           //Point center(faces[i].x + eyes[j].x + eyes[j].width*0.5, faces[i].y + eyes[j].y + eyes[j].height*0.5);
           //ellipse(image, center, Size(eyes[j].width*0.5, eyes[j].height*0.5), 0, 0, 360, Scalar(255, 0, 255), 4, 8, 0);
         
           Mat eye = face(eyes.at(j));
           Point* eyeCenters;
-          runAnalysis(eye, mode, true, eyeCenters);
+          runAnalysis(eye, mode, true, false, eyeCenters);
           eyeCenters[0].x += faces[i].x + eyes[j].x;
           eyeCenters[0].y += faces[i].y + eyes[j].y;
           line(image, eyeCenters[0] - Point(5, 0), eyeCenters[0] + Point(5, 0), Scalar(0, 0, 255), 1, 8, 0);
@@ -161,7 +174,7 @@ int main(int argc, char** argv) {
     }
     
     Point* eyeCenters;
-    runAnalysis(image, mode, silentMode, eyeCenters);
+    runAnalysis(image, mode, silentMode, true, eyeCenters);
   }
 
   waitKey(0);
