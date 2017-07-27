@@ -42,3 +42,5 @@ src/build
 *~
 
 *.mp4
+*.log
+*.dat
